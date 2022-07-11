@@ -2,7 +2,7 @@ name: Build Validator
 on:
   push:
     branches:
-    - validate
+    - main
     paths:
     - 'validate-headers.html'
     - 'header-validator/validate-json.js'
@@ -15,7 +15,7 @@ jobs:
     - name: Build
       run: make validator
     - name: Deploy
-      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/validate' }}
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
