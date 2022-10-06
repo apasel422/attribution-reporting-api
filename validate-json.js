@@ -2,6 +2,14 @@ const uint64Regex = /^[0-9]+$/
 const int64Regex = /^-?[0-9]+$/
 const hex128Regex = /^0[xX][0-9A-Fa-f]{1,32}$/
 
+const limits = {
+  maxAggregatableTriggerData: 50,
+  maxAggregationKeys: 50,
+  maxEventTriggerData: 10,
+  maxFilters: 50,
+  maxFilterValues: 50,
+}
+
 class State {
   constructor() {
     this.path = []
@@ -72,10 +80,16 @@ function string(f = () => {}) {
   }
 }
 
-function object(f = () => {}) {
+function object(f = () => {}, maxKeys = Infinity) {
   return (state, value) => {
     if (typeof value === 'object' && value.constructor === Object) {
-      Object.entries(value).forEach(([key, value]) =>
+      const entries = Object.entries(value)
+
+      if (entries.length > maxKeys) {
+        state.error(`exceeds the maximum number of keys (${maxKeys})`)
+      }
+
+      entries.forEach(([key, value]) =>
         state.scope(key, () => f(state, key, value))
       )
       return true
@@ -85,9 +99,13 @@ function object(f = () => {}) {
   }
 }
 
-function list(f = () => {}) {
+function list(f = () => {}, maxLength = Infinity) {
   return (state, values) => {
     if (values instanceof Array) {
+      if (values.length > maxLength) {
+        state.error(`exceeds the maximum length (${maxLength})`)
+      }
+
       values.forEach((value, index) =>
         state.scope(index, () => f(state, value))
       )
@@ -161,7 +179,7 @@ const destination = string((state, url) => {
   }
 })
 
-// TODO: Check length of lists and strings.
+// TODO: Check length of strings.
 const filters = (allowSourceType = true) =>
   object((state, filter, values) => {
     if (filter === 'source_type' && !allowSourceType) {
@@ -169,35 +187,38 @@ const filters = (allowSourceType = true) =>
       return
     }
 
-    list(string())(state, values)
-  })
+    list(string(), limits.maxFilterValues)(state, values)
+  }, limits.maxFilters)
 
 // TODO: check length of key
 const aggregationKeys = object((state, key, value) => {
   hex128(state, value)
-})
+}, limits.maxAggregationKeys)
 
 export function validateSource(source) {
   const state = new State()
   state.validate(source, {
+    aggregatable_expiry: optional(int64),
     aggregation_keys: optional(aggregationKeys),
     debug_key: optional(uint64),
     destination: required(destination),
     expiry: optional(int64),
     filter_data: optional(filters(/*allowSourceType=*/ false)),
     priority: optional(int64),
-    source_event_id: required(uint64),
+    source_event_id: optional(uint64),
   })
   return state.result()
 }
 
-const aggregatableTriggerData = list((state, value) =>
-  state.validate(value, {
-    filters: optional(filters()),
-    key_piece: required(hex128),
-    not_filters: optional(filters()),
-    source_keys: required(list(string())),
-  })
+const aggregatableTriggerData = list(
+  (state, value) =>
+    state.validate(value, {
+      filters: optional(filters()),
+      key_piece: required(hex128),
+      not_filters: optional(filters()),
+      source_keys: required(list(string(), limits.maxAggregationKeys)),
+    }),
+  limits.maxAggregatableTriggerData
 )
 
 // TODO: check length of key
@@ -206,16 +227,18 @@ const aggregatableValues = object((state, key, value) => {
   if (!Number.isInteger(value) || value <= 0 || value > max) {
     state.error(`must be an integer in the range (1, ${max}]`)
   }
-})
+}, limits.maxAggregationKeys)
 
-const eventTriggerData = list((state, value) =>
-  state.validate(value, {
-    deduplication_key: optional(uint64),
-    filters: optional(filters()),
-    not_filters: optional(filters()),
-    priority: optional(int64),
-    trigger_data: required(uint64),
-  })
+const eventTriggerData = list(
+  (state, value) =>
+    state.validate(value, {
+      deduplication_key: optional(uint64),
+      filters: optional(filters()),
+      not_filters: optional(filters()),
+      priority: optional(int64),
+      trigger_data: optional(uint64),
+    }),
+  limits.maxEventTriggerData
 )
 
 export function validateTrigger(trigger) {
@@ -227,6 +250,7 @@ export function validateTrigger(trigger) {
     event_trigger_data: optional(eventTriggerData),
     filters: optional(filters()),
     not_filters: optional(filters()),
+    aggregatable_deduplication_key: optional(uint64),
   })
   return state.result()
 }
