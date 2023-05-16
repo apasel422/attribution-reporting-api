@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/WICG/attribution-reporting-api/source.schema.json",
+  "$id": "https://wicg.github.io/attribution-reporting-api/source.schema.json",
   "title": "Source",
   "description": "An Attribution Reporting source registration",
   "type": "object",
