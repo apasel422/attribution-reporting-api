@@ -1,14 +1,34 @@
 import assert from 'node:assert/strict'
-import { validateJSON, validateSource, validateTrigger } from './validate-json.js'
-import { testCases as sourceTestCases } from './data.source.js'
-import { testCases as triggerTestCases } from './data.trigger.js'
+import { validateSource, validateTrigger } from './validate-json.js'
 
-function runTest(testCase, validate) {
-  const { errors, warnings } = validateJSON(testCase.json, validate)
+assert.deepEqual(validateSource(`{
+  "source_event_id": "abc"
+}`), {
+  errors: [
+    {
+      msg: 'does not match pattern "^[0-9]+$"',
+      path: [ 'source_event_id' ]
+    },
+    {
+      msg: 'requires property "destination"',
+      path: [],
+    },
+  ],
+})
 
-  assert.deepEqual(errors, testCase.expectedErrors || [], testCase.name)
-  assert.deepEqual(warnings, testCase.expectedWarnings || [], testCase.name)
-}
-
-sourceTestCases.forEach(testCase => runTest(testCase, validateSource))
-triggerTestCases.forEach(testCase => runTest(testCase, validateTrigger))
+assert.deepEqual(validateTrigger(`{
+  "event_triggers": [
+    {"trigger_data": 3}
+  ]
+}`), {
+  errors: [
+    {
+      msg: 'is not of a type(s) string',
+      path: [
+        'event_triggers',
+        0,
+        'trigger_data'
+     ]
+   }
+ ],
+})

@@ -1,9 +1,9 @@
 SHELL = /bin/bash
 OUT_DIR ?= out
 
-.PHONY: all clean validator
+.PHONY: all clean
 
-all: $(OUT_DIR)/index.html $(OUT_DIR)/validate-headers.html $(OUT_DIR)/validate-json.js $(OUT_DIR)/validate-eligible.js $(OUT_DIR)/validate-os.js
+all: $(OUT_DIR)/index.html $(OUT_DIR)/source.schema.json $(OUT_DIR)/trigger.schema.json $(OUT_DIR)/validate-headers.html $(OUT_DIR)/validate-json.js $(OUT_DIR)/validate-eligible.js $(OUT_DIR)/validate-os.js
 
 $(OUT_DIR)/index.html: index.bs $(OUT_DIR)
 	@ (HTTP_STATUS=$$(curl https://api.csswg.org/bikeshed/ \
@@ -17,6 +17,12 @@ $(OUT_DIR)/index.html: index.bs $(OUT_DIR)
 		rm $@; \
 		exit 22 \
 	);
+
+$(OUT_DIR)/source.schema.json: header-validator/source.schema.json $(OUT_DIR)
+	@ cp $< $@
+
+$(OUT_DIR)/trigger.schema.json: header-validator/trigger.schema.json $(OUT_DIR)
+	@ cp $< $@
 
 $(OUT_DIR)/validate-headers.html: validate-headers.html $(OUT_DIR)
 	@ cp $< $@

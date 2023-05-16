@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/WICG/attribution-reporting-api/trigger.schema.json",
+  "$id": "https://wicg.github.io/attribution-reporting-api/trigger.schema.json",
   "title": "Trigger",
   "description": "An Attribution Reporting trigger registration",
   "type": "object",
