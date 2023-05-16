@@ -3,11 +3,9 @@ const int64Regex = /^-?[0-9]+$/
 const hex128Regex = /^0[xX][0-9A-Fa-f]{1,32}$/
 
 const limits = {
-  maxAggregatableTriggerData: 50,
-  maxAggregationKeys: 50,
-  maxEventTriggerData: 10,
-  maxFilters: 50,
-  maxFilterValues: 50,
+  maxAggregationKeys: 20,
+  maxEntriesPerFilterData: 50,
+  maxValuesPerFilterDataEntry: 50,
 }
 
 class State {
@@ -80,9 +78,24 @@ function string(f = () => {}) {
   }
 }
 
+function bool(state, value) {
+  if (typeof value === 'boolean') {
+    return
+  }
+  state.error('must be a boolean')
+}
+
+function isObject(value) {
+  return typeof value === 'object' && value.constructor === Object
+}
+
+function isArray(value) {
+  return value instanceof Array
+}
+
 function object(f = () => {}, maxKeys = Infinity) {
   return (state, value) => {
-    if (typeof value === 'object' && value.constructor === Object) {
+    if (isObject(value)) {
       const entries = Object.entries(value)
 
       if (entries.length > maxKeys) {
@@ -95,15 +108,16 @@ function object(f = () => {}, maxKeys = Infinity) {
       return true
     }
     state.error('must be an object')
-    return false
   }
 }
 
-function list(f = () => {}, maxLength = Infinity) {
+function list(f = () => {}, maxLength = Infinity, minLength = 0) {
   return (state, values) => {
-    if (values instanceof Array) {
-      if (values.length > maxLength) {
-        state.error(`exceeds the maximum length (${maxLength})`)
+    if (isArray(values)) {
+      if (values.length > maxLength || values.length < minLength) {
+        state.error(
+          `List size out of expected bounds. Size must be within [${minLength}, ${maxLength}]`
+        )
       }
 
       values.forEach((value, index) =>
@@ -129,7 +143,7 @@ const uint64 = string((state, value) => {
 
 const int64 = string((state, value) => {
   if (!int64Regex.test(value)) {
-    state.error(`must be a uint64 (must match ${uint64Regex})`)
+    state.error(`must be an int64 (must match ${int64Regex})`)
     return
   }
 
@@ -178,17 +192,49 @@ const destination = string((state, url) => {
     state.warn('contains a fragment that will be ignored')
   }
 })
+const destinationList = list(destination, 3, 1)
+
+const destinationValue = (state, value) => {
+  if (typeof value === 'string') {
+    return destination(state, value)
+  }
+  if (isArray(value)) {
+    return destinationList(state, value)
+  }
+  state.error('must be a list or a string')
+}
+
+const listOrObject = (f = () => {}, listMaxLength, listMinLength) => {
+  return (state, value, key) => {
+    if (isObject(value)) {
+      return f(state, value, key)
+    }
+
+    if (isArray(value)) {
+      return list(f, listMaxLength, listMinLength)(state, value, key)
+    }
+
+    state.error('must be a list or an object')
+  }
+}
 
 // TODO: Check length of strings.
-const filters = (allowSourceType = true) =>
+const filterData = () =>
   object((state, filter, values) => {
-    if (filter === 'source_type' && !allowSourceType) {
+    if (filter === 'source_type') {
       state.error('is prohibited because it is implicitly set')
       return
     }
 
-    list(string(), limits.maxFilterValues)(state, values)
-  }, limits.maxFilters)
+    list(string(), limits.maxValuesPerFilterDataEntry)(state, values)
+  }, limits.maxEntriesPerFilterData)
+
+const filters = () =>
+  object((state, filter, values) => {
+    list(string())(state, values)
+  })
+
+const orFilters = listOrObject(filters())
 
 // TODO: check length of key
 const aggregationKeys = object((state, key, value) => {
@@ -198,12 +244,14 @@ const aggregationKeys = object((state, key, value) => {
 export function validateSource(source) {
   const state = new State()
   state.validate(source, {
-    aggregatable_expiry: optional(int64),
+    aggregatable_report_window: optional(int64),
+    event_report_window: optional(int64),
     aggregation_keys: optional(aggregationKeys),
     debug_key: optional(uint64),
-    destination: required(destination),
+    debug_reporting: optional(bool),
+    destination: required(destinationValue),
     expiry: optional(int64),
-    filter_data: optional(filters(/*allowSourceType=*/ false)),
+    filter_data: optional(filterData()),
     priority: optional(int64),
     source_event_id: optional(uint64),
   })
@@ -213,13 +261,11 @@ export function validateSource(source) {
 const aggregatableTriggerData = list(
   (state, value) =>
     state.validate(value, {
-      filters: optional(filters()),
+      filters: optional(orFilters),
       key_piece: required(hex128),
-      not_filters: optional(filters()),
-      source_keys: required(list(string(), limits.maxAggregationKeys)),
-    }),
-  limits.maxAggregatableTriggerData
-)
+      not_filters: optional(orFilters),
+      source_keys: optional(list(string(), limits.maxAggregationKeys)),
+    }))
 
 // TODO: check length of key
 const aggregatableValues = object((state, key, value) => {
@@ -233,24 +279,50 @@ const eventTriggerData = list(
   (state, value) =>
     state.validate(value, {
       deduplication_key: optional(uint64),
-      filters: optional(filters()),
-      not_filters: optional(filters()),
+      filters: optional(orFilters),
+      not_filters: optional(orFilters),
       priority: optional(int64),
       trigger_data: optional(uint64),
-    }),
-  limits.maxEventTriggerData
-)
+    }))
+
+const aggregationCoordinator = string((state, value) => {
+  const awsCloud = 'aws-cloud'
+  if (value === awsCloud) {
+    return
+  }
+  state.error(`must match '${awsCloud}' (case-sensitive)`)
+})
+
+const aggregatableDedupKeys = list(
+  (state, value) =>
+    state.validate(value, {
+      deduplication_key: optional(uint64),
+      filters: optional(filters()),
+      not_filters: optional(filters()),
+    }))
+
+const aggregatableSourceRegistrationTime = string((state, value) => {
+  const exclude = 'exclude'
+  const include = 'include'
+  if (value === exclude || value === include) {
+    return
+  }
+  state.error(`must match '${exclude}' or '${include}' (case-sensitive)`)
+})
 
 export function validateTrigger(trigger) {
   const state = new State()
   state.validate(trigger, {
     aggregatable_trigger_data: optional(aggregatableTriggerData),
     aggregatable_values: optional(aggregatableValues),
+    aggregation_coordinator_identifier: optional(aggregationCoordinator),
     debug_key: optional(uint64),
+    debug_reporting: optional(bool),
     event_trigger_data: optional(eventTriggerData),
-    filters: optional(filters()),
-    not_filters: optional(filters()),
-    aggregatable_deduplication_key: optional(uint64),
+    filters: optional(orFilters),
+    not_filters: optional(orFilters),
+    aggregatable_deduplication_keys: optional(aggregatableDedupKeys),
+    aggregatable_source_registration_time : optional(aggregatableSourceRegistrationTime),
   })
   return state.result()
 }
@@ -263,21 +335,4 @@ export function validateJSON(json, f) {
     return { errors: [{ msg: err.message }], warnings: [] }
   }
   return f(value)
-}
-
-export function formatIssue({ msg, path }) {
-  if (path === undefined) {
-    return msg
-  }
-
-  let context
-  if (path.length === 0) {
-    context = 'JSON root'
-  } else {
-    context = path
-      .map((p) => (typeof p === 'number' ? `[${p}]` : `["${p}"]`))
-      .join('')
-  }
-
-  return `${msg}: ${context}`
 }
