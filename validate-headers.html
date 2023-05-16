@@ -86,8 +86,9 @@ textarea {
   <li><code></code> <span></span></li>
 </template>
 <script src="https://cdn.jsdelivr.net/npm/structured-headers@0.5.0/browser/structured-header.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsonschema@1.4.1/browser/jsonschema.min.js"></script>
 <script defer type=module>
-import { validateJSON, validateSource, validateTrigger } from './validate-json.js';
+import { validateSource, validateTrigger } from './validate-json.js';
 import { validateEligible } from './validate-eligible.js';
 import { validateRegisterOsSource, validateRegisterOsTrigger } from './validate-os.js';
 
@@ -128,10 +129,10 @@ form.addEventListener('input', () => {
   let result;
   switch (header()) {
   case 'source':
-    result = validateJSON(input.value, validateSource);
+    result = validateSource(input.value);
     break;
   case 'trigger':
-    result = validateJSON(input.value, validateTrigger);
+    result = validateTrigger(input.value);
     break;
   case 'os-source':
     result = validateRegisterOsSource(input.value);
