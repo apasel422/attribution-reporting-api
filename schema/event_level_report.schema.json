@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/WICG/attribution-reporting-api/event_level_report.schema.json",
+  "title": "Event-Level Report",
+  "description": "An Attribution Reporting event-level report",
+  "type": "object",
+  "properties": {
+    "attribution_destination": {
+      "type": ["array", "string"],
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "maxItems": 3
+    },
+    "randomized_trigger_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "source_debug_key": {
+      "$ref": "#/$defs/unsigned_base10_integer"
+    },
+    "source_event_id": {
+      "$ref": "#/$defs/unsigned_base10_integer"
+    },
+    "source_type": {
+      "type": "string",
+      "pattern": "^(event|navigation)$"
+    },
+    "trigger_data": {
+      "$ref": "#/$defs/unsigned_base10_integer"
+    },
+    "trigger_debug_key": {
+      "$ref": "#/$defs/unsigned_base10_integer"
+    }
+  },
+  "required": [
+    "attribution_destination",
+    "randomized_trigger_rate",
+    "source_event_id",
+    "source_type",
+    "trigger_data"
+  ],
+
+  "$defs": {
+    "unsigned_base10_integer": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    }
+  }
+}
