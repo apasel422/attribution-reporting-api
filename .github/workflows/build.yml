@@ -4,6 +4,7 @@ on:
     branches:
     - main
     paths:
+    - '.github/workflows/build.yml'
     - 'Makefile'
     - 'index.bs'
     - 'ts/**'
@@ -11,6 +12,7 @@ on:
     branches:
     - main
     paths:
+    - '.github/workflows/build.yml'
     - 'Makefile'
     - 'index.bs'
     - 'ts/**'
