@@ -1,9 +1,11 @@
 SHELL = /bin/bash
 OUT_DIR ?= out
 
-.PHONY: all clean validator
+.PHONY: all clean spec validator
 
-all: $(OUT_DIR)/index.html validator
+all: spec validator
+
+spec: $(OUT_DIR)/index.html
 
 $(OUT_DIR)/index.html: index.bs $(OUT_DIR)
 	@ (HTTP_STATUS=$$(curl https://api.csswg.org/bikeshed/ \

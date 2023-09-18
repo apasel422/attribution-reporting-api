@@ -6,6 +6,7 @@ on:
     paths:
     - 'Makefile'
     - 'index.bs'
+    - 'ts/**'
   push:
     branches:
     - main
@@ -13,17 +14,28 @@ on:
     - 'Makefile'
     - 'index.bs'
     - 'ts/**'
+
 jobs:
   build:
-    name: Build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: make
-    - name: Deploy
-      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./out
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Build
+        run: make spec validator
+
+  deploy:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+    steps:
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: './out'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
