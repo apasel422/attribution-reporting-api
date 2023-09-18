@@ -23,19 +23,23 @@ jobs:
         uses: actions/checkout@v3
       - name: Build
         run: make spec validator
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: './out'
 
   deploy:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{steps.deployment.outputs.page_url}}
     steps:
-      - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v2
-        with:
-          path: './out'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2
