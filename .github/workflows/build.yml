@@ -5,7 +5,6 @@ on:
     - main
     paths:
     - '.github/workflows/build.yml'
-    - 'Makefile'
     - 'index.bs'
     - 'ts/**'
   push:
@@ -13,7 +12,6 @@ on:
     - main
     paths:
     - '.github/workflows/build.yml'
-    - 'Makefile'
     - 'index.bs'
     - 'ts/**'
 
@@ -21,10 +19,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Build
-        run: make spec validator
+      - uses: actions/checkout@v3
+      - run: mkdir out
+      - name: Build Spec
+        uses: w3c/spec-prod@v2
+        with:
+          DESTINATION: out
+          VALIDATE_MARKUP: false
+      - uses: actions/setup-node@v3
+      - name: Build Validator
+        run: |
+          npm ci --prefix ./ts
+          npm run pack --prefix ./ts
+      - name: Assemble
+        run: |
+          ls ./out
+          mv ./ts/dist/header-validator/main.js ./out/validate-headers.js
+          mv ./ts/src/header-validator/index.html ./out/validate-headers.html
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v2
         with:
